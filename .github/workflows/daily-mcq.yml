@@ -5,6 +5,9 @@ on:
     # Runs at 00:30 UTC (6:00 AM IST) Monday-Saturday
     - cron: '30 0 * * 1-6'
   workflow_dispatch:  # Allows manual triggering for testing
+  push:  # TEMPORARY: Remove this after testing
+    branches:
+      - main
 
 jobs:
   post-mcqs:
@@ -28,4 +31,4 @@ jobs:
       env:
         TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-      run: mock.py
+      run: python mock.py
