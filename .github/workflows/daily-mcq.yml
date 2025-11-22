@@ -29,6 +29,6 @@ jobs:
     
     - name: Run MCQ posting script
       env:
-        TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TOKEN: ${{ secrets.TOKEN }}
         GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       run: python mock.py
