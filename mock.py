@@ -13,8 +13,8 @@ from main import post_mcqs_to_telegram
 # CONFIGURATION
 # --------------------------------------
 TELEGRAM_BOT_TOKEN = os.environ.get("TOKEN")
-CHAT_ID = -1001991761209 #-1003018799293
-MESSAGE_THREAD_ID = None #3
+CHAT_ID = -1003018799293
+MESSAGE_THREAD_ID = 3
 EXCEL_FILE_PATH = "pyqs.xlsx"
 
 SCHEDULE = {

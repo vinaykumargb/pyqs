@@ -2,8 +2,8 @@ name: Daily MCQ Telegram Bot
 
 on:
   schedule:
-    # Runs at 00:30 UTC (6:00 AM IST) Monday-Saturday
-    - cron: '13 6 * * 1-6'
+    # Runs at 23:30 UTC (5:00 AM IST) everyday
+    - cron: '30 23 * * *'
   workflow_dispatch:  # Allows manual triggering for testing
 
 jobs:
