@@ -1,0 +1,31 @@
+name: Daily MCQ Telegram Bot
+
+on:
+  schedule:
+    # Runs at 00:30 UTC (6:00 AM IST) Monday-Saturday
+    - cron: '30 0 * * 1-6'
+  workflow_dispatch:  # Allows manual triggering for testing
+
+jobs:
+  post-mcqs:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install openpyxl python-telegram-bot pytz requests
+    
+    - name: Run MCQ posting script
+      env:
+        TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      run: mock.py
