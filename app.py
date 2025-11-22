@@ -12,8 +12,8 @@ import random
 # CONFIGURATION
 # --------------------------------------
 TELEGRAM_BOT_TOKEN = os.environ.get("TOKEN")
-CHAT_ID = -1003018799293
-MESSAGE_THREAD_ID = 3
+CHAT_ID = -1001991761209
+MESSAGE_THREAD_ID = None
 EXCEL_FILE_PATH = "pyqs.xlsx"
 
 SCHEDULE = {
