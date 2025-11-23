@@ -5,7 +5,7 @@ from datetime import datetime
 import pytz
 from openpyxl import load_workbook
 from telegram import Bot, Poll
-from telegram.error import TelegramError
+from telegram.error import TelegramError, TimedOut, NetworkError
 import random
 from main import post_mcqs_to_telegram
 
@@ -16,6 +16,11 @@ TELEGRAM_BOT_TOKEN = os.environ.get("TOKEN")
 CHAT_ID = -1003018799293
 MESSAGE_THREAD_ID = 3
 EXCEL_FILE_PATH = "pyqs.xlsx"
+
+# Retry configuration
+MAX_RETRIES = 3
+RETRY_DELAY = 5  # seconds
+REQUEST_TIMEOUT = 30  # seconds
 
 SCHEDULE = {
     0: ["Polity"],
@@ -28,6 +33,26 @@ SCHEDULE = {
 }
 
 IST = pytz.timezone('Asia/Kolkata')
+
+# --------------------------------------
+# RETRY DECORATOR
+# --------------------------------------
+async def retry_on_timeout(func, *args, max_retries=MAX_RETRIES, delay=RETRY_DELAY, **kwargs):
+    """Retry a function if it times out"""
+    for attempt in range(max_retries):
+        try:
+            return await func(*args, **kwargs)
+        except (TimedOut, NetworkError, asyncio.TimeoutError) as e:
+            if attempt < max_retries - 1:
+                wait_time = delay * (attempt + 1)  # Exponential backoff
+                print(f"Timeout on attempt {attempt + 1}/{max_retries}. Retrying in {wait_time}s... Error: {e}")
+                await asyncio.sleep(wait_time)
+            else:
+                print(f"Failed after {max_retries} attempts: {e}")
+                raise
+        except Exception as e:
+            print(f"Non-timeout error: {e}")
+            raise
 
 # --------------------------------------
 # CLEAN NEWLINES
@@ -97,10 +122,9 @@ def select_mcqs_for_day(mcqs, day_of_week):
     return selected
 
 # --------------------------------------
-# SEND TELEGRAM POLL
+# SEND TELEGRAM POLL WITH RETRY
 # --------------------------------------
 async def post_mcq_poll(bot, mcq, mcq_number):
-
     try:
         # YEAR CLEANUP
         year_raw = mcq.get('Year')
@@ -127,14 +151,19 @@ async def post_mcq_poll(bot, mcq, mcq_number):
 
         question_text = f"{day_subject}📝 MCQ {mcq_number}/5\n\n{question_raw}{year_text}"
 
-        await bot.send_message(
+        # Send message with retry
+        await retry_on_timeout(
+            bot.send_message,
             chat_id=CHAT_ID,
             text=question_text,
             message_thread_id=MESSAGE_THREAD_ID,
-            parse_mode="Markdown"
+            parse_mode="Markdown",
+            read_timeout=REQUEST_TIMEOUT,
+            write_timeout=REQUEST_TIMEOUT,
+            connect_timeout=REQUEST_TIMEOUT
         )
 
-        # OPTIONS — RAW, NO CHECKING
+        # OPTIONS
         options = [
             normalize_newlines(str(mcq.get("Option A", ""))),
             normalize_newlines(str(mcq.get("Option B", ""))),
@@ -145,10 +174,12 @@ async def post_mcq_poll(bot, mcq, mcq_number):
         correct_answer = str(mcq.get("Correct Answer", "")).strip().upper()
         correct_index = {"A": 0, "B": 1, "C": 2, "D": 3}.get(correct_answer, 0)
 
-        # EXPLANATION — RAW
+        # EXPLANATION
         explanation_text = normalize_newlines(str(mcq.get("Explanation", "")))
 
-        await bot.send_poll(
+        # Send poll with retry
+        await retry_on_timeout(
+            bot.send_poll,
             chat_id=CHAT_ID,
             question="Select your answer:",
             options=options,
@@ -156,7 +187,10 @@ async def post_mcq_poll(bot, mcq, mcq_number):
             correct_option_id=correct_index,
             explanation=explanation_text,
             is_anonymous=True,
-            message_thread_id=MESSAGE_THREAD_ID
+            message_thread_id=MESSAGE_THREAD_ID,
+            read_timeout=REQUEST_TIMEOUT,
+            write_timeout=REQUEST_TIMEOUT,
+            connect_timeout=REQUEST_TIMEOUT
         )
 
         print(f"Posted MCQ {mcq_number}")
@@ -164,12 +198,15 @@ async def post_mcq_poll(bot, mcq, mcq_number):
 
     except Exception as e:
         print(f"Error posting MCQ {mcq_number}: {e}")
+        raise  # Re-raise to handle in the caller
 
 # --------------------------------------
 # POST DAILY 5 MCQs
 # --------------------------------------
 async def post_daily_mcqs():
+    # Initialize bot with custom timeout settings
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
+    
     mcqs = load_mcqs_from_excel(EXCEL_FILE_PATH)
 
     if not mcqs:
@@ -183,42 +220,56 @@ async def post_daily_mcqs():
         print("No MCQs for today's subjects")
         return
 
-    # POST MCQs 1 to 5
+    # POST MCQs 1 to 5 with error handling
+    successful_posts = 0
     for i, mcq in enumerate(selected, 1):
-        await post_mcq_poll(bot, mcq, i)
+        try:
+            await post_mcq_poll(bot, mcq, i)
+            successful_posts += 1
+        except Exception as e:
+            print(f"Failed to post MCQ {i} after all retries: {e}")
+            # Continue with next MCQ instead of stopping
+
+    print(f"Successfully posted {successful_posts}/{len(selected)} MCQs")
 
     # THEMES SUMMARY
-    themes_text = ""
-    try:
-        themes_text = "📌 Today's PYQ Themes:\n"
-        for i, mcq in enumerate(selected, 1):
-            topic = mcq.get("Topic", "No topic provided")
-            themes_text += f"{i}. {topic}\n"
+    if successful_posts > 0:
+        themes_text = ""
+        try:
+            themes_text = "📌 Today's PYQ Themes:\n"
+            for i, mcq in enumerate(selected, 1):
+                topic = mcq.get("Topic", "No topic provided")
+                themes_text += f"{i}. {topic}\n"
 
-        await bot.send_message(
-            chat_id=CHAT_ID,
-            text=themes_text,
-            message_thread_id=MESSAGE_THREAD_ID
-        )
-        
-        print("Posted PYQ themes")
+            await retry_on_timeout(
+                bot.send_message,
+                chat_id=CHAT_ID,
+                text=themes_text,
+                message_thread_id=MESSAGE_THREAD_ID,
+                read_timeout=REQUEST_TIMEOUT,
+                write_timeout=REQUEST_TIMEOUT,
+                connect_timeout=REQUEST_TIMEOUT
+            )
+            
+            print("Posted PYQ themes")
 
-    except Exception as e:
-        print("Error posting themes:", e)
-    
-    # POST MOCK MCQs using Gemini AI
-    try:
-        print("\nGenerating and posting Mock MCQs...")
-        # Add a small delay before posting mock MCQs
-        await asyncio.sleep(3)
+        except Exception as e:
+            print(f"Error posting themes: {e}")
+            return  # Don't proceed to mock MCQs if themes fail
         
-        # Call the imported function to generate and post mock MCQs
-        post_mcqs_to_telegram(CHAT_ID, themes_text, MESSAGE_THREAD_ID)
-        
-        print("Mock MCQs posted successfully!")
-        
-    except Exception as e:
-        print(f"Error posting mock MCQs: {e}")
+        # POST MOCK MCQs using Gemini AI
+        try:
+            print("\nGenerating and posting Mock MCQs...")
+            await asyncio.sleep(3)
+            
+            # Call the imported function to generate and post mock MCQs
+            # Note: This function should also implement retry logic internally
+            post_mcqs_to_telegram(CHAT_ID, themes_text, MESSAGE_THREAD_ID)
+            
+            print("Mock MCQs posted successfully!")
+            
+        except Exception as e:
+            print(f"Error posting mock MCQs: {e}")
 
 # --------------------------------------
 # MAIN
@@ -229,5 +280,11 @@ if __name__ == "__main__":
         exit()
 
     print("Starting bot...")
-    asyncio.run(post_daily_mcqs())
-    print("Done!")
+    try:
+        asyncio.run(post_daily_mcqs())
+        print("Done!")
+    except KeyboardInterrupt:
+        print("\nBot stopped by user")
+    except Exception as e:
+        print(f"Fatal error: {e}")
+        exit(1)
