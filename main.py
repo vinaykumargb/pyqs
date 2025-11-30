@@ -4,7 +4,7 @@ import json
 import random
 import time
 
-# Environment variables
+# Get Environment variables
 TELEGRAM_TOKEN = os.environ.get('TOKEN')
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
