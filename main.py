@@ -5,8 +5,8 @@ import random
 import time
 
 # Environment variables
-TELEGRAM_TOKEN = "7061400729:AAEvv3mNmY1FhbXcMZc-40He_oWggW3hiyk" #os.environ.get('TOKEN')
-GEMINI_API_KEY = "AIzaSyAVhcvyHp3uYeLRCtKH-RZ83eDr4eshIEM" #os.environ.get('GEMINI_API_KEY')
+TELEGRAM_TOKEN = os.environ.get('TOKEN')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY')
 
 # Telegram API base URL
 TELEGRAM_API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
