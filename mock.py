@@ -22,6 +22,7 @@ MAX_RETRIES = 3
 RETRY_DELAY = 5  # seconds
 REQUEST_TIMEOUT = 30  # seconds
 
+# Updated schedule: Monday (0) to Saturday (5) only
 SCHEDULE = {
     0: ["Polity"],
     1: ["Economy"],
@@ -29,7 +30,7 @@ SCHEDULE = {
     3: ["Geography"],
     4: ["ScienceAndTech"],
     5: ["Environment"],
-    6: ["Current Affairs and Miscellaneous"],
+    # Sunday (6) is removed
 }
 
 IST = pytz.timezone('Asia/Kolkata')
@@ -204,6 +205,12 @@ async def post_mcq_poll(bot, mcq, mcq_number):
 # POST DAILY 5 MCQs
 # --------------------------------------
 async def post_daily_mcqs():
+    # Check if today is Sunday (6 = Sunday)
+    day = datetime.now(IST).weekday()
+    if day == 6:
+        print("Today is Sunday. Bot will not run.")
+        return
+    
     # Initialize bot with custom timeout settings
     bot = Bot(token=TELEGRAM_BOT_TOKEN)
     
@@ -213,7 +220,6 @@ async def post_daily_mcqs():
         print("No MCQs found")
         return
 
-    day = datetime.now(IST).weekday()
     selected = select_mcqs_for_day(mcqs, day)
 
     if not selected:
